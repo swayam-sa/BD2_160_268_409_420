@@ -1,6 +1,6 @@
 import json
 import numpy as np
-from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, Word2Vec
+from pyspark.ml.feature import RegexTokenizer, StopWordsRemover
 from pyspark.sql import SQLContext, SparkSession
 from pyspark import SparkContext
 from pyspark.streaming import StreamingContext
@@ -45,27 +45,24 @@ def label_encoder(df):
 
 
 def tokenizer(df, y):
-    feature0 = RegexTokenizer(inputCol="feature0", outputCol='tokens0', pattern='\\W')
     feature1 = RegexTokenizer(inputCol="feature1", outputCol='tokens1', pattern='\\W')
-    tk0 = feature0.transform(df).select('tokens0')
     tk1 = feature1.transform(df).select('tokens1')
-    stop_words_remover(tk0, tk1, y)
+    stop_words_remover(tk1, y)
 
 
-def stop_words_remover(col1, col2, y):
-    feature0 = StopWordsRemover(inputCol='tokens0', outputCol='filtered_words0')
+def stop_words_remover(col1, y):
     feature1 = StopWordsRemover(inputCol='tokens1', outputCol='filtered_words1')
-    swr0 = feature0.transform(col1).select('filtered_words0')
-    swr1 = feature1.transform(col2).select('filtered_words1')
-    hash_vectoriser(swr0, swr1, y)
+    swr1 = feature1.transform(col1).select('filtered_words1')
+    hash_vectoriser(swr1, y)
 
 
-def hash_vectoriser(swr0, swr1, y):
-    X1 = np.array(swr1.withColumn("filtered_words1", concat_ws(" ", "filtered_words1")).collect()).tolist()
-    X11 = [i[0] for i in X1]
+def hash_vectoriser(swr1, y):
+    data_with_new_line = np.array(swr1.withColumn("filtered_words1", concat_ws(" ", "filtered_words1")).collect()).tolist()
+    data_hv = [i[0] for i in data_with_new_line]
     hv = HashingVectorizer(alternate_sign=False)
-    X111 = hv.fit_transform(X11).toarray()
-    x_train, x_test, y_train, y_test = train_test_split(X111, y, test_size=0.2)
+    output_hv = hv.fit_transform(data_hv).toarray()
+    x_train, x_test, y_train, y_test = train_test_split(output_hv, y, test_size=0.2)
+
     nb.partial_fit(x_train, y_train, classes=np.unique(y_train))
     print("nb train accuracy: %.3f" % nb.score(x_test, y_test))
     filename_nb = 'nb_model.pkl'
